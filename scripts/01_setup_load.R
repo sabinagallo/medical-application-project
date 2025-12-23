@@ -114,3 +114,17 @@ if("MIDAS" %in% names(long)) {
     mutate(MIDAS = factor(MIDAS, levels = c(1, 2, 3, 4), 
                           ordered = TRUE))
 }
+
+# =============================================================================
+#  Define cycle start/end timepoints
+# =============================================================================
+
+long <- long %>%
+  mutate(
+    is_cycle_start = (MONTH == "1"),
+    is_cycle_end = (MONTH == "12")
+  )
+
+cat("\n--- Cycle start/end checks ---\n")
+cat("Rows qith MONTH==1 (cycle start):", sum(long$is_cycle_start, na.rm = TRUE), "\n")
+cat("Rows with MONTH==12 (cycle end):", sum(long$is_cycle_end, na.rm = TRUE), "\n")
