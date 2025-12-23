@@ -103,12 +103,12 @@ long <- long %>% mutate(across(all_of(num_long_vars), as.numeric))
 if (length(hit6_col) == 1) {
   long <- long %>% mutate("{hit6_col}" := as.numeric(.data[[hit6_col]]))
 } else {
-  cat("\nWARNING: HIT-6 column not found or ambigous. \n")
-  cat("Available colums: \n")
+  cat("\nWARNING: HIT-6 column not found or ambiguous. \n")
+  cat("Available columns: \n")
   print(names(long))
 }
 
-# MIDAS as ordered facotr (grades 1-4), if present
+# MIDAS as ordered factor (grades 1-4), if present
 if("MIDAS" %in% names(long)) {
   long <- long %>%
     mutate(MIDAS = factor(MIDAS, levels = c(1, 2, 3, 4), 
