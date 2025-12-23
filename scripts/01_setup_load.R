@@ -83,3 +83,34 @@ baseline <- baseline %>%
                          labels = c("Yes", "No"))))
 
 
+# ---- Longitudinal dataset ----
+
+# Detect the HIT-6 column name safely
+hit6_col <- intersect(c("HIT-6", "HIT_6", "HIT6"), names(long))
+
+long <- long %>%
+  mutate(
+    CYCLE = factor(CYCLE),
+    MONTH = factor( MONTH, levels = c(1, 3, 6, 9, 12))
+  )
+
+# Numeric outcomes (convert only the columns that exist)
+num_long_vars <- intersect(c("MMDs", "HADSA", "HADSD", "INT", "DOSE"), 
+                           names(long))
+long <- long %>% mutate(across(all_of(num_long_vars), as.numeric))
+
+# HIT-6 numeric (if present)
+if (length(hit6_col) == 1) {
+  long <- long %>% mutate("{hit6_col}" := as.numeric(.data[[hit6_col]]))
+} else {
+  cat("\nWARNING: HIT-6 column not found or ambigous. \n")
+  cat("Available colums: \n")
+  print(names(long))
+}
+
+# MIDAS as ordered facotr (grades 1-4), if present
+if("MIDAS" %in% names(long)) {
+  long <- long %>%
+    mutate(MIDAS = factor(MIDAS, levels = c(1, 2, 3, 4), 
+                          ordered = TRUE))
+}
