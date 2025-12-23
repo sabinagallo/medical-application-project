@@ -63,9 +63,9 @@ baseline <- baseline %>%
     SEX = factor(SEX, levels = c(1, 2), 
                  labels = c("Female", "Male")),
     
-    # DIAGNOSIS coding: 1=Chronic, 2=Medication Overuse, £=HF Episodic
+    # DIAGNOSIS coding: 1=Chronic, 2=Medication Overuse, 3=HF Episodic
     DIAGNOSIS = factor(DIAGNOSIS, levels = c(1, 2, 3),
-                       labels = c("Chronic", "Medication OOveruse",
+                       labels = c("Chronic", "Medication Overuse",
                                   "HF Episodic"))
   )
 
