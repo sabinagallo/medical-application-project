@@ -128,3 +128,6 @@ long <- long %>%
 cat("\n--- Cycle start/end checks ---\n")
 cat("Rows with MONTH==1 (cycle start):", sum(long$is_cycle_start, na.rm = TRUE), "\n")
 cat("Rows with MONTH==12 (cycle end):", sum(long$is_cycle_end, na.rm = TRUE), "\n")
+
+
+
