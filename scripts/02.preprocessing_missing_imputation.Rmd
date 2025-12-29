@@ -1,6 +1,8 @@
 ---
 title: "02.preprocessing_missing_imputation"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 This part audits missing data patterns and prepares imputation outputs. 
@@ -24,7 +26,7 @@ cat("Unique subjects baseline:", n_distinct(baseline$SUBJECT_ID), "\n")
 cat("Unique subjects long:", n_distinct(long$SUBJECT_ID), "\n")
 ```
 
-Missingness audit: we compute the missing rate for each variable in the baseline dataset. And then we repeat the same procedure for the longitudinal one. 
+Missingness audit: we compute the missing rate for each variable in both the baseline and the longitudinal datasets and exported the results as CSV tables for documentation and reporting purposes.
 ```{r missingness-audit}
 # Baseline missing rate per variable
 miss_base <- baseline %>%
@@ -48,7 +50,7 @@ print(head(miss_long, 10))
 
 readr::write_csv(miss_long, "outputs/missing/missing_longitudinal.csv")
 ```
-Missingness by timepoint (CYCLE x MONTH) for key outcomes
+Missingness by timepoint (CYCLE x MONTH) for key longitudinal outcomes (MMDs, HIT-6, HADS-A/D, INT and MIDAS when available), in order to assess whetehr missing data patterns varied across follow-up visits.
 ```{r}
 # Define key outcomes (use only those that exist)
 key_vars <- c("MMDs", "HIT6", "HADSA", "HADSD", "INT", "MIDAS")
@@ -57,10 +59,11 @@ key_vars <- intersect(key_vars, names(long))
 # Compute missingness by cycle and month
 miss_by_time <- long %>%
   group_by(CYCLE, MONTH) %>%
-  summarise(across(all_of(key_vars),
-                   ~ mean(is.na(.)),
-                   .names = "miss_{.col}"),
-            .groups = "drop")
+  summarise(
+    across(all_of(key_vars), ~ mean(is.na(.)), .names = "miss_{.col}"),
+            .groups = "drop"
+    ) %>%
+  arrange(CYCLE, MONTH)
 
 cat("\nMissingness by cycle/month (first rows):\n")
 print(head(miss_by_time, 10))
@@ -116,6 +119,8 @@ if (length(pattern_vars) >= 2) {
 }
 
 ```
+
+
 Export md.pattern table: this step saves the md.pattern output as a table. It is useful for reporting missingness patterns withput relying on the plot. 
 ```{r}
 if (length(pattern_vars) >= 2) {
@@ -153,5 +158,57 @@ if (length(pattern_vars) >= 2) {
 } else {
   cat("\nStep 5 skipped: not enough variables for md.pattern export.\n")
 }
+```
+Baseline imputation (MICE)
+After inspecting missingenss patterns in a subset of baseline variables (md. pattern), we run a multivariate imputation by chained equations (MICE) model on the selected baseline covariates.
+
+The goal is to obtain one completed baseline dataset ('baseline_imp') that we will later merge with the longitudinal data for the main analyses.
+
+
+```{r mice-baseline-main, message=FALSE, warning=FALSE, fig.width=10, fig.height=5}
+library(mice)
+
+# Select baseline vars to impute (keep it aligned with your md.pattern subset)
+mice_vars <- intersect(
+  c("SUBJECT_ID", "AGE_OF_ONSET", "BMI", "FAMILIARITY", "Aura", "Psycopathological"),
+  names(baseline)
+)
+
+cat("\nVariables used for baseline MICE:\n")
+print(mice_vars)
+
+base_mice <- baseline %>% select(all_of(mice_vars))
+
+# Convert categorical vars to factors
+cat_vars <- intersect(c("FAMILIARITY", "Aura", "Psycopathological"), names(base_mice))
+base_mice <- base_mice %>% mutate(across(all_of(cat_vars), as.factor))
+
+# Do not impute SUBJECT_ID
+meth <- make.method(base_mice)
+meth["SUBJECT_ID"] <- ""
+
+pred <- make.predictorMatrix(base_mice)
+pred[, "SUBJECT_ID"] <- 0
+pred["SUBJECT_ID", ] <- 0
+
+set.seed(123)
+imp <- mice(base_mice, m = 5, maxit = 20, method = meth, predictorMatrix = pred)
+
+# Diagnostics: trace plots
+plot(imp)
+
+# Diagnostics: density plots for numeric vars (if present)
+if ("BMI" %in% names(base_mice)) densityplot(imp, ~ BMI)
+if ("AGE_OF_ONSET" %in% names(base_mice)) densityplot(imp, ~ AGE_OF_ONSET)
+
+# Extract one completed dataset
+baseline_imp <- complete(imp, 1)
+
+# Save outputs
+saveRDS(imp, "data/processed/baseline_mice_object.rds")
+saveRDS(baseline_imp, "data/processed/baseline_imputed.rds")
+
+cat("\nSaved baseline_imp to data/processed/baseline_imputed.rds\n")
+
 ```
 
