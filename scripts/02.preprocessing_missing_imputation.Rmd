@@ -73,13 +73,13 @@ readr::write_csv(miss_by_time, "outputs/missing/missing_by_cycle_month.csv")
 
 ```
 MICE diagnostics: md.pattern on a baseline subset
-```{r mdpattern-run, fig.width=10, fig.height=6, message=FALSE, warning=FALSE}
+```{r mdpattern-run, fig.width=10, fig.heigth=6, message=FALSE, warning=FALSE}
 if (!requireNamespace("mice", quietly = TRUE)) install.packages("mice")
 library(mice)
 
 # Select variables (only those available)
 pattern_vars <- intersect(
-  c("AGE_OF_ONSET", "BMI", "HEIGHT", "FAMILIARITY", "Aura", "Psycopathological"),
+  c("AGE_OF_ONSET", "BMI", "HEIGTH", "FAMILIARITY", "Aura", "Psycopathological"),
   names(baseline)
 )
 
@@ -94,7 +94,7 @@ if (length(pattern_vars) >= 2) {
   short_names <- c(
     "AGE_OF_ONSET" = "onset",
     "BMI" = "bmi",
-    "HEIGHT" = "height",
+    "HEIGTH" = "heigth",
     "FAMILIARITY" = "fam",
     "Aura" = "aura",
     "Psycopathological" = "psycho"
@@ -132,7 +132,7 @@ if (length(pattern_vars) >= 2) {
   short_names <- c(
     "AGE_OF_ONSET" = "onset",
     "BMI" = "bmi",
-    "HEIGHT" = "height",
+    "HEIGTH" = "heigth",
     "FAMILIARITY" = "fam",
     "Aura" = "aura",
     "Psycopathological" = "psycho"
@@ -164,26 +164,21 @@ After inspecting missingenss patterns in a subset of baseline variables (md. pat
 
 The goal is to obtain one completed baseline dataset ('baseline_imp') that we will later merge with the longitudinal data for the main analyses.
 
-
-```{r mice-baseline-main, message=FALSE, warning=FALSE, fig.width=10, fig.height=5}
+```{r mice-baseline-main, message=FALSE, warning=FALSE, fig.width=10, fig.heigth=5}
 library(mice)
 
-# Select baseline vars to impute (keep it aligned with your md.pattern subset)
 mice_vars <- intersect(
-  c("SUBJECT_ID", "AGE_OF_ONSET", "BMI", "FAMILIARITY", "Aura", "Psycopathological"),
+  c("SUBJECT_ID", "AGE", "BMI", "WEIGTH", "HEIGTH", "AGE_OF_ONSET", "FAMILIARITY", "Aura", "Psycopathological"),
   names(baseline)
 )
 
-cat("\nVariables used for baseline MICE:\n")
-print(mice_vars)
+base_mice <- baseline %>% dplyr::select(all_of(mice_vars))
 
-base_mice <- baseline %>% select(all_of(mice_vars))
-
-# Convert categorical vars to factors
+# Convert categorical vars to factors (only if present)
 cat_vars <- intersect(c("FAMILIARITY", "Aura", "Psycopathological"), names(base_mice))
 base_mice <- base_mice %>% mutate(across(all_of(cat_vars), as.factor))
 
-# Do not impute SUBJECT_ID
+# Do not impute ID
 meth <- make.method(base_mice)
 meth["SUBJECT_ID"] <- ""
 
@@ -194,21 +189,22 @@ pred["SUBJECT_ID", ] <- 0
 set.seed(123)
 imp <- mice(base_mice, m = 5, maxit = 20, method = meth, predictorMatrix = pred)
 
-# Diagnostics: trace plots
-plot(imp)
+plot(imp)  # trace plots
 
-# Diagnostics: density plots for numeric vars (if present)
 if ("BMI" %in% names(base_mice)) densityplot(imp, ~ BMI)
 if ("AGE_OF_ONSET" %in% names(base_mice)) densityplot(imp, ~ AGE_OF_ONSET)
 
-# Extract one completed dataset
 baseline_imp <- complete(imp, 1)
 
-# Save outputs
+dir.create("data/processed", showWarnings = FALSE, recursive = TRUE)
 saveRDS(imp, "data/processed/baseline_mice_object.rds")
 saveRDS(baseline_imp, "data/processed/baseline_imputed.rds")
 
-cat("\nSaved baseline_imp to data/processed/baseline_imputed.rds\n")
-
 ```
+MICE ran for 20 iterations with 5 imputed datasets. We inspected convergence using trace plots and checked the plausibility of imputations using density plots for continuous variables.
 
+We then extracted one completed baseline dataset ('baseline_imp = complete(imp, 1)') for the main analysis workflow and saved both the MICE object and the imputed baseline dataset as '.rds' files:
+- 'data/processed/baseline_mice_object.rds'
+- 'data/processed/baseline_imputed.rds'
+
+Diagnostic figures were saved in 'outputs/missing/' for reporting. 
