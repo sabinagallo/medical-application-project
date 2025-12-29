@@ -26,7 +26,7 @@ cat("Unique subjects baseline:", n_distinct(baseline$SUBJECT_ID), "\n")
 cat("Unique subjects long:", n_distinct(long$SUBJECT_ID), "\n")
 ```
 
-Missingness audit: we compute the missing rate for each variable in both the baseline and the longitudinal datasets and exported the results as CSV tables for documentation and reporting purposes.
+Missingness audit: we compute the missing rate for each variable in both the baseline and the longitudinal datasets and export the results as CSV tables for documentation and reporting purposes.
 ```{r missingness-audit}
 # Baseline missing rate per variable
 miss_base <- baseline %>%
@@ -73,7 +73,7 @@ readr::write_csv(miss_by_time, "outputs/missing/missing_by_cycle_month.csv")
 
 ```
 MICE diagnostics: md.pattern on a baseline subset
-```{r mdpattern-run, fig.width=10, fig.heigth=6, message=FALSE, warning=FALSE}
+```{r mdpattern-run, fig.width=10, fig.height=6, message=FALSE, warning=FALSE}
 if (!requireNamespace("mice", quietly = TRUE)) install.packages("mice")
 library(mice)
 
@@ -132,7 +132,7 @@ if (length(pattern_vars) >= 2) {
   short_names <- c(
     "AGE_OF_ONSET" = "onset",
     "BMI" = "bmi",
-    "HEIGTH" = "heigth",
+    "HEIGTH" = "height",
     "FAMILIARITY" = "fam",
     "Aura" = "aura",
     "Psycopathological" = "psycho"
@@ -164,7 +164,7 @@ After inspecting missingness patterns in a subset of baseline variables (md. pat
 
 The goal is to obtain one completed baseline dataset ('baseline_imp') that we will later merge with the longitudinal data for the main analyses.
 
-```{r mice-baseline-main, message=FALSE, warning=FALSE, fig.width=10, fig.heigth=5}
+```{r mice-baseline-main, message=FALSE, warning=FALSE, fig.width=10, fig.height=5}
 library(mice)
 
 mice_vars <- intersect(
@@ -207,4 +207,72 @@ We then extracted one completed baseline dataset ('baseline_imp = complete(imp, 
 - 'data/processed/baseline_mice_object.rds'
 - 'data/processed/baseline_imputed.rds'
 
-Diagnostic figures were saved in 'outputs/missing/' for reporting. 
+Diagnostic figures were generated in the rendered output for reporting. 
+
+===============================================================================
+**Longitudinal Imputation (main and sensitivity analyses):**
+In this step, we address missing vslues in the longitudinal outcomes.
+Given the repeated-measures structure of th data and the presence of distinct treatment cycles separated by a suspension period, imputation is performed **within each patient and within each treatment cycle**, without borrowing information across cycles.
+
+We define two longitudinal datasets:
+- a **main dataset**, using linear interpolation between observed values;
+- a **sensitivity dataset**, using a last observation carried forward (LOCF) approach.
+
+In both cases, missing values occurring **before the first observed measurement within a cycle** are not imputed, in order to avoid introducing artificial baseline values.
+
+```{r longitudinal-imputation, message=FALSE, warning=FALSE}
+if (!requireNamespace("zoo", quietly = TRUE)) install.packages("zoo")
+library(zoo)
+
+# Key longitudinal variables to impute (keep only those that exist)
+vars_long_imp <- c("MMDs", "HIT6", "HADSA", "HADSD", "INT", "MIDAS")
+vars_long_imp <- intersect(vars_long_imp, names(long))
+
+cat("\nLongitudinal variables considered for imputation:\n")
+print(vars_long_imp)
+
+# Ensure correct ordering (within subject and cycle)
+long_sorted <- long %>%
+  arrange(SUBJECT_ID, CYCLE, MONTH)
+
+# -------------------------
+# MAIN: linear interpolation within SUBJECT_ID x CYCLE
+# - na.approx does NOT extrapolate when na.rm=FALSE:
+#   leading NAs and trailing NAs remain NA
+# -------------------------
+long_main <- long_sorted %>%
+  group_by(SUBJECT_ID, CYCLE) %>%
+  arrange(MONTH, .by_group = TRUE) %>%
+  mutate(
+    across(
+      all_of(vars_long_imp),
+      ~ zoo::na.approx(., x = MONTH, na.rm = FALSE),
+      .names = "{.col}"
+    )
+  ) %>%
+  ungroup()
+
+# -------------------------
+# SENSITIVITY: LOCF within SUBJECT_ID x CYCLE
+# - carries last observed value forward
+# - leading NAs remain NA when na.rm=FALSE
+# -------------------------
+long_sens <- long_sorted %>%
+  group_by(SUBJECT_ID, CYCLE) %>%
+  arrange(MONTH, .by_group = TRUE) %>%
+  mutate(
+    across(
+      all_of(vars_long_imp),
+      ~ zoo::na.locf(., na.rm = FALSE),
+      .names = "{.col}"
+    )
+  ) %>%
+  ungroup()
+
+# Save for downstream steps
+dir.create("data/processed", showWarnings = FALSE, recursive = TRUE)
+saveRDS(long_main, "data/processed/long_imputed_main_interp.rds")
+saveRDS(long_sens, "data/processed/long_imputed_sens_locf.rds")
+
+cat("\nSaved:\n- data/processed/long_imputed_main_interp.rds\n- data/processed/long_imputed_sens_locf.rds\n")
+```
