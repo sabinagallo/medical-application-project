@@ -2,7 +2,7 @@
 title: "1_task"
 output: html_document
 ---
-Task 1: Objective vs Subjective Treatment Response
+**Task 1: Objective vs Subjective Treatment Response**
 
 **Task 1 Goal and Strategy:**
 The treatment may reduce Monthly Migraine Days (MMDs), but this does not always translate into a proportional improvement in patient-reported outcomes (e.g., HIT-6, MIDAS, HADS).
@@ -41,26 +41,30 @@ dir.create("outputs/task1/figures", recursive = TRUE, showWarnings = FALSE)
 cat("Rows (main):", nrow(data_main), "\n")
 cat("Row (sens):", nrow(data_sens), "\n")
 cat("Unique subjects (main):", n_distinct(data_main$SUBJECT_ID), "\n")
-cat("Unique subjects (sens:", n_distinct(data_sens$SUBJECT_ID), "\n")
+cat("Unique subjects (sens):", n_distinct(data_sens$SUBJECT_ID), "\n")
 
 
 ```
-The following setup loads
-
-Analytical dataset: we build a minimal longitudinal dataset containing identifiers, time variables, and the two main outcomes (MMDs and HIT-6). This dataset will be used both for mixed models and for responder/mismatch definitions.
+The following setup loads the preprocessed datasets created in the previous steps and defines the analysis environment for Task 1.
+Two datasets are used:
+- a main dataset based on linear interpolation;
+- a sensitivity dataset based on LOCF imputation.
+===============================================================================
+Analytical dataset: we build a minimal longitudinal dataset for Task 1 including subject  identifiers, time variables (cycle, month), and the two main outcomes (MMDs and HIT-6). Optional variables (HADS-A/D, INT, MIDAS) are retained when available. This dataset will be used both for mixed models and for responder/mismatch definitions.
 
 ```{r}
 #We require SUBJECT_ID, CYCLE, MONTH, MMDs, HIT6
 required_cols <- c("SUBJECT_ID", "CYCLE", "MONTH", "MMDs", "HIT6")
-stopifnot(all(required_cols %in% names(long)))
+stopifnot(all(required_cols %in% names(data_main)))
+stopifnot(all(required_cols %in% names(data_sens)))
 
-data_task1 <- long %>%
+keep_cols <- c("SUBJECT_ID", "CYCLE", "MONTH", "MMDs", "HIT6", "HADSA",
+               "HADSD","INT", "MIDAS")
+
+# MAIN dataset for Task 1 (interpolation-based)
+data_task1_main <- data_main %>%
   # Keep only relevant columns (optional variables are kept only if present)
-  dplyr::select(dplyr::any_of(c(
-    "SUBJECT_ID", "CYCLE", "MONTH",
-    "MMDs", "HIT6",
-    "HADSA", "HADSD", "INT", "MIDAS"
-  ))) %>%
+  dplyr::select(dplyr::any_of(keep_cols)) %>%
   dplyr::mutate(
     SUBJECT_ID = factor(SUBJECT_ID),
     CYCLE = factor(CYCLE),
@@ -70,38 +74,82 @@ data_task1 <- long %>%
                    ordered = TRUE)
   )
 
-cat("Task1 dataset dim:", dim(data_task1), "\n")
-cat("Missingness (MMDs):", mean(is.na(data_task1$MMDs)), "\n")
-cat("Missingness (HIT6):", mean(is.na(data_task1$HIT6)), "\n")
+# SENSITIVITY dataset for Task 1 (LOCF-based)
+data_task1_sens <- data_sens %>%
+  # Keep only relevant columns (optional variables are kept only if present)
+  dplyr::select(dplyr::any_of(keep_cols)) %>%
+  dplyr::mutate(
+    SUBJECT_ID = factor(SUBJECT_ID),
+    CYCLE = factor(CYCLE),
+    # Keep month as an ordered factor (1, 3, 6, 9, 12)
+    MONTH = factor(as.character(MONTH),
+                   levels = c("1", "3", "6", "9", "12"),
+                   ordered = TRUE)
+  )
+
+
+cat("Task1 MAIN dim:", dim(data_task1_main), "\n")
+cat("Missingness MAIN (MMDs):", mean(is.na(data_task1_main$MMDs)), "\n")
+cat("Missingness MAIN (HIT6):", mean(is.na(data_task1_main$HIT6)), "\n")
+
+cat("Task1 SENS dim:", dim(data_task1_sens), "\n")
+cat("Missingness SENS (MMDs):", mean(is.na(data_task1_sens$MMDs)), "\n")
+cat("Missingness SENS (HIT6):", mean(is.na(data_task1_sens$HIT6)), "\n")
 ```
+We created two parallel longitudinal dataset (MAIN and SENS) to run the same analyses under alternative missing-data handling strategies. MONTH is modeled as an ordered factor because follow-up is scheduled at 1, 3, 6, 9 and 12 months. The missingness summaries serve as a sanity check before model fitting.
+===============================================================================
+
 Mixed models (average effects over time): We fit two separate linear mixed models with a random intercept for each patient. This estimates the average change over time while accounting for repeated measures within subjects.
 
-```{r}
+```{r task1-mixed-models-main, message=FALSE, warning=FALSE}
+
 # Load required packages
 if (!requireNamespace("lme4", quietly = TRUE)) install.packages("lme4")
 if (!requireNamespace("lmerTest", quietly = TRUE)) install.packages("lmerTest")
-
+             
 library(lme4)
 library(lmerTest)
+
+# MAIN dataset only (interpolation-based)
+dat <- data_task1_main
 
 # ---- Model A: Objective outcome (Monthly Migraine Days) ----
 mod_mmds <- lmer(
   MMDs ~ CYCLE + MONTH + (1 | SUBJECT_ID),
-  data = data_task1,
+  data = dat,
   REML = FALSE
 )
 
 # ---- Model B: Subjective outcome (HIT-6) ----
 mod_hit6 <- lmer(
   HIT6 ~ CYCLE + MONTH + (1 | SUBJECT_ID),
-  data = data_task1,
+  data = dat,
   REML = FALSE
 )
 
-# Model summaries (fixed effects + random intercept variance)
 summary(mod_mmds)
 summary(mod_hit6)
+
+# Optional models (only if the variables exist)
+mods_optional <- list()
+
+if("HADSA" %in% names(dat)) {
+  mods_optional$hadsa_main <- lmer(HADSA ~CYCLE + MONTH + (1 | SUBJECT_ID), data = dat, REML = FALSE)
+}
+
+
+if("HADSD" %in% names(dat)) {
+  mods_optional$hadsd_main <- lmer(HADSD ~ CYCLE + MONTH + (1 | SUBJECT_ID), data = dat, REML = FALSE)
+}
+
+if (length(mods_optional) > 0) lapply(mods_optional, summary)
+
 ```
+MONTH is treated as an ordered factor (1, 3, 6, 9, 12), so R reporst polynomial contrats for time: MONTH.L (overall linear trend), MONTH.Q(curvature), MONTH.C (cubic) and MONTH^4(higher-order).
+These mixed models estimate the average change over follow-up while accounting for repeated measurements via a subject-specific random intercept.
+Optioanl HADS models are fitted only where available; therefore they involve a smaller sample (only subjects with HADS observed at some visits), so their estimates are not direclty comparable in precision with the MMDs/HIT-6 models.
+
+
 Export model results: we exposrt fixed effects tables (estimate + 95% CI) and create mean +SE trend plots.
 ```{r}
 # Packages for tidying model outputs
