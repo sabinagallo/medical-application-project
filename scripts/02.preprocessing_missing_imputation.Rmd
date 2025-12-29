@@ -319,7 +319,7 @@ this results into two final analysis-ready datasets:
 - a **main dataset**, based on linear interpolation of longitudinal outcomes;
 - a **sensitivity dataset**, based on LOCF imputation.
 
-Each dataset contains one row per subject, cycle and month, enriched with baseline covariates and will be used in downstream mixed-effects and  mismatch analyses.
+Each dataset contains one row per subject x cycle x month, enriched with subject-level baseline covariates and will be used in downstream mixed-effects and  mismatch analyses.
 
 ```{r merge-final-datasets, message=FALSE, warning=FALSE}
 # Load imputed datasets
@@ -340,6 +340,9 @@ cat("Rows (sens):", nrow(data_sens), "\n")
 
 cat("Unique subjects (main):", n_distinct(data_main$SUBJECT_ID), "\n")
 cat("Unique subjects (sens):", n_distinct(data_sens$SUBJECT_ID), "\n")
+
+cat("Missing baseline after merge (main):",
+    sum(is.na(data_main$AGE)), "\n")
 
 # Check for duplicated visit identifiers
 dup_main <- data_main %>%

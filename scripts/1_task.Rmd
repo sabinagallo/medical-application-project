@@ -4,27 +4,48 @@ output: html_document
 ---
 Task 1: Objective vs Subjective Treatment Response
 
-This task examines the relationship between objective clinical improvement and patient-reported outcomes during anri-CGRP treatment. 
-We first estimate average effects over time using mixed models. Then we quantify the mismatch by defining responders and discordant profiles at the end of Cycle 1. 
+**Task 1 Goal and Strategy:**
+The treatment may reduce Monthly Migraine Days (MMDs), but this does not always translate into a proportional improvement in patient-reported outcomes (e.g., HIT-6, MIDAS, HADS).
+In this task we quantify the objective-subjective mismatch during long-term anti-CGRP treatment.
+
+We proceed in two steps:
+**1. Average longitudinal change:** 
+We fit separate linear mixed-effects models for MMDs (objective) and HIT-6 (subjective), accounting for repeated measures with a patient-specific random intercept.
+
+**2. Mismatch at Cycle 1:**
+We define objective and subjective responders using pre-specified clinical threshold and estimate the proportion of discordant patietns (objective responder , but not subjective responder).
+
+A sensitivity analysis repeats the same workflow under an alternative longitudinal imputation strategy (LOCF) to assess robustness.
 
 ```{r setup, message=FALSE, warning=FALSE}
 # ---- Setup ----
 if (!requireNamespace("rstudioapi", quietly = TRUE)) install.packages("rstudioapi")
 library(tidyverse)
 
-# Force working directory to the project root (important because notebooks are in scripts/)
+# Force working directory to the project root 
 setwd(rstudioapi::getActiveProject())
 cat("WD set to:", getwd(), "\n")
 
-# Load cleaned datasets produced in 01_setup.Rmd
-baseline <- readRDS("data/processed/baseline_clean.rds")
-long <- readRDS("data/processed/long_clean.rds")
+# Load baseline (clean + imputed version saved in preprocessing step)
+baseline_imp <- readRDS("data/processed/baseline_imputed.rds")
+
+# Load analysis datasets created in 02.preprocessing_missing_imputation.Rmd 
+data_main <- readRDS("data/processed/data_main_analysis.rds")
+data_sens <- readRDS("data/processed/data_sens_analysis.rds")
 
 # Output folders
 dir.create("outputs/task1", recursive = TRUE, showWarnings = FALSE)
 dir.create("outputs/task1/figures", recursive = TRUE, showWarnings = FALSE)
 
+# Quick checks
+cat("Rows (main):", nrow(data_main), "\n")
+cat("Row (sens):", nrow(data_sens), "\n")
+cat("Unique subjects (main):", n_distinct(data_main$SUBJECT_ID), "\n")
+cat("Unique subjects (sens:", n_distinct(data_sens$SUBJECT_ID), "\n")
+
+
 ```
+The following setup loads
 
 Analytical dataset: we build a minimal longitudinal dataset containing identifiers, time variables, and the two main outcomes (MMDs and HIT-6). This dataset will be used both for mixed models and for responder/mismatch definitions.
 
