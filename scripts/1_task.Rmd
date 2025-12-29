@@ -493,12 +493,12 @@ c1_change <- c1_change %>%
   )
 
 # Scatter plot
-p_scatter <- ggplot(c1_change, aes(x = pct_change_MMDs, y = delta_HIT6)) +
+p_scatter <- ggplot(c1_change_sens, aes(x = pct_change_MMDs, y = delta_HIT6)) +
   # Decision thresholds
   geom_vline(xintercept = -0.50, linetype = "dashed") +
   geom_hline(yintercept = -5, linetype = "dashed") +
   # Points (shape indicates discordance)
-  geom_point(aes(shape = factor(discordance)), alpha = 0.85) +
+  geom_point(aes(shape = factor(discordant_primary)), alpha = 0.85) +
   labs(
     title = "Objective vs Subjective Change (Cycle 1)",
     x = "MMDs % change (end vs start)",
@@ -890,6 +890,12 @@ compare_fx <- dplyr::bind_rows(
     sign_match = (sign_MAIN == sign_SENS)
   ) %>%
   arrange(model, term)
+
+key_terms <- c("CYCLE2", "CYCLE3", "MONTH.L", "MONTH.Q", "MONTH.C", "MONTH^4")
+
+compare_fx_key <- compare_fx %>%
+  filter(term %in% key_terms) %>%
+  arrange(model, match(term, key_terms))
 
 compare_fx
 readr::write_csv(compare_fx, "outputs/task1/compare_main_vs_sens_fixed_effects_sign.csv")
