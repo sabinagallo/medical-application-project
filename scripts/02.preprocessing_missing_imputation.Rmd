@@ -211,8 +211,8 @@ Diagnostic figures were generated in the rendered output for reporting.
 
 ===============================================================================
 **Longitudinal Imputation (main and sensitivity analyses):**
-In this step, we address missing vslues in the longitudinal outcomes.
-Given the repeated-measures structure of th data and the presence of distinct treatment cycles separated by a suspension period, imputation is performed **within each patient and within each treatment cycle**, without borrowing information across cycles.
+In this step, we address missing values in the longitudinal outcomes.
+Given the repeated-measures structure of the data and the presence of distinct treatment cycles separated by a washout (suspension) period, imputation is performed **within each patient and within each treatment cycle**, without borrowing information across cycles.
 
 We define two longitudinal datasets:
 - a **main dataset**, using linear interpolation between observed values;
@@ -269,6 +269,34 @@ long_sens <- long_sorted %>%
   ) %>%
   ungroup()
 
+# --- Sanity check: do not impute before the first observation within each cycle ---
+check_leading <- long_sorted %>%
+  group_by(SUBJECT_ID, CYCLE) %>%
+  arrange(MONTH, .by_group = TRUE) %>%
+  summarise(
+    lead_na_MMDs_orig = is.na(first(MMDs)),
+    lead_na_MMDs_main = is.na(first(long_main$MMDs[match(paste(SUBJECT_ID, CYCLE, first(MONTH)),
+                                                        paste(long_main$SUBJECT_ID, long_main$CYCLE, long_main$MONTH))])),
+    lead_na_MMDs_sens = is.na(first(long_sens$MMDs[match(paste(SUBJECT_ID, CYCLE, first(MONTH)),
+                                                        paste(long_sens$SUBJECT_ID, long_sens$CYCLE, long_sens$MONTH))])),
+    .groups = "drop"
+  )
+
+print(head(check_leading, 10))
+
+write.csv(check_leading,
+          "outputs/missing/leading_na_check_MMDs.csv",
+          row.names = FALSE)
+
+
+# Any violations? (leading NA in original should remain NA after imputation)
+viol_main <- sum(check_leading$lead_na_MMDs_orig & !check_leading$lead_na_MMDs_main, na.rm = TRUE)
+viol_sens <- sum(check_leading$lead_na_MMDs_orig & !check_leading$lead_na_MMDs_sens, na.rm = TRUE)
+
+cat("\nLeading-NA violations (MMDs):\n")
+cat("main (interp):", viol_main, "\n")
+cat("sens (LOCF):", viol_sens, "\n")
+
 # Save for downstream steps
 dir.create("data/processed", showWarnings = FALSE, recursive = TRUE)
 saveRDS(long_main, "data/processed/long_imputed_main_interp.rds")
@@ -276,3 +304,65 @@ saveRDS(long_sens, "data/processed/long_imputed_sens_locf.rds")
 
 cat("\nSaved:\n- data/processed/long_imputed_main_interp.rds\n- data/processed/long_imputed_sens_locf.rds\n")
 ```
+After imputation, we performed a sanity check to verify that no values were imputed before the first observed measurement within each treatment cycle.
+
+Specifically, we compared the presence of leading missing values in the original data with the imputed datasets for the main (interpolation) and sensitivity (LOCF) approaches.
+
+No leading-NA violations were detected for primary outcomes (MMDs), confirming that the imputation respected the cycle structure and did not borrow information from previous cycles or introduce artificial baseline values.
+
+===============================================================================
+**Final merge of baseline and longitudinal data**
+
+In this step, we merge the imputed baseline dataset with the longitudinal datasets obtained after missing-data handling.
+
+this results into two final analysis-ready datasets:
+- a **main dataset**, based on linear interpolation of longitudinal outcomes;
+- a **sensitivity dataset**, based on LOCF imputation.
+
+Each dataset contains one row per subject, cycle and month, enriched with baseline covariates and will be used in downstream mixed-effects and  mismatch analyses.
+
+```{r merge-final-datasets, message=FALSE, warning=FALSE}
+# Load imputed datasets
+baseline_imp <- readRDS("data/processed/baseline_imputed.rds")
+long_main <- readRDS("data/processed/long_imputed_main_interp.rds")
+long_sens <- readRDS("data/processed/long_imputed_sens_locf.rds")
+
+# Merge baseline covariates into longitudinal data
+data_main <- long_main %>%
+  left_join(baseline_imp, by = "SUBJECT_ID")
+
+data_sens <- long_sens %>%
+  left_join(baseline_imp, by = "SUBJECT_ID")
+
+# Sanity checks
+cat("Rows (main):", nrow(data_main), "\n")
+cat("Rows (sens):", nrow(data_sens), "\n")
+
+cat("Unique subjects (main):", n_distinct(data_main$SUBJECT_ID), "\n")
+cat("Unique subjects (sens):", n_distinct(data_sens$SUBJECT_ID), "\n")
+
+# Check for duplicated visit identifiers
+dup_main <- data_main %>%
+  count(SUBJECT_ID, CYCLE, MONTH) %>%
+  filter(n > 1)
+
+dup_sens <- data_sens %>%
+  count(SUBJECT_ID, CYCLE, MONTH) %>%
+  filter(n > 1)
+
+cat("Duplicate visits (main):", nrow(dup_main), "\n")
+cat("Duplicate visits (sens):", nrow(dup_sens), "\n")
+
+# Save final datasets
+saveRDS(data_main, "data/processed/data_main_analysis.rds")
+saveRDS(data_sens, "data/processed/data_sens_analysis.rds")
+
+cat("\nSaved final datasets:\n")
+cat("- data/processed/data_main_analysis.rds\n")
+cat("- data/processed/data_sens_analysis.rds\n")
+```
+
+
+
+The merge did not introduce duplicated visits or inconsistencies in the longotudinal structure.
+The resulting datasets are now fully analysis-ready and will be sued for mixed-effects modeling and mismatch analyses addressing Task 1 and Task 2.
