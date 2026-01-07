@@ -105,22 +105,44 @@ readr::write_csv(outcome_counts, "outputs/task2/outcome_counts.csv")
 We created two separate discordance outcomes. The unhappy-responder variable identifies patients who meet the objective responder criterion, but do not achieve a clinically meaningful HIT-6 improvement (the clinically central mismatch).
 The happy_nonresponder variable captures the opposite pattern. We also report counts and percentage to assess how many events are available for subsequent logistic modeling (important avoiding overfitting)
 
-```{r}
-# ------------------------------------------------------------
-# Load Task 1 patient-level dataset
-# ------------------------------------------------------------
 
-c1_task1 <- readr::read_csv(
-  "outputs/task1/cycle1_responder_discordance_main.csv",
-  show_col_types = FALSE
-)
-
-# Sanity checks
-cat("Patients:", nrow(c1_task1), "\n")
-cat("Unique SUBJECT_ID:", dplyr::n_distinct(c1_task1$SUBJECT_ID), "\n")
-
-# Check required columns
-stopifnot(all(c("SUBJECT_ID", "obj_resp", "subj_resp") %in% names(c1_task1)))
-```
 We start from the patient-level dataset generated in Task 1, which contains one row per subject with objective and subjective responder indicators at the end of Cycle 1.
 This dataset represents the analytical backbone for Task2 and ensures that all subsequent analyses are conducted at the patient level.
+
+==============================================================
+**Build the Task 2 analytic dataset (patient-level)**
+We want to explain who is more likely to be an Unhappy Responder at Cycle 1: patients who achieve an objective response (MMD reduction), but do not experience a clinically meaningful improvement in HIT-6,
+Therefore, the analytic dataset must contain one row per patient, with:
+1. the bianry outcome (unhappy_responder), and
+2. baseline predictors (demographics, diagnosis, comorbidities, baseline migraine burden / intensity, treatment type, etc).
+
+```{r task2-step21-merge-baseline, message=FALSE, warning=FALSE}
+# ------------------------------------------------------------
+# Step 2.1: Load baseline (RDS) + merge into Cycle 1 dataset
+# ------------------------------------------------------------
+
+file_baseline <- file.path("data", "processed", "baseline_clean.rds")
+cat("Trying to read baseline:", file_baseline, "\n")
+stopifnot(file.exists(file_baseline))
+
+baseline <- readRDS(file_baseline)
+
+# safety: 1 row per subject
+baseline <- baseline %>% distinct(SUBJECT_ID, .keep_all = TRUE)
+
+# merge (keeps Task 1 analytic sample)
+task2_df <- c1_main %>%
+  left_join(baseline, by = "SUBJECT_ID")
+
+# sanity checks
+cat("Rows task2_df:", nrow(task2_df), "\n")
+cat("Unique subjects task2_df:", dplyr::n_distinct(task2_df$SUBJECT_ID), "\n")
+
+# if AGE exists in baseline, this is a good merge check
+if ("AGE" %in% names(task2_df)) {
+  cat("Missing AGE after merge:", sum(is.na(task2_df$AGE)), "\n")
+}
+
+# save
+readr::write_csv(task2_df, "outputs/task2/task2_cycle1_analytic_raw.csv")
+```
