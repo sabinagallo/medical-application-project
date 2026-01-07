@@ -69,7 +69,7 @@ stopifnot(all(c("SUBJECT_ID", "obj_resp", "subj_resp", "discordance") %in% names
 ```
 This setup chunk initializes the environment, creates output folders for Task 2, and loads the patient-level Cycle 1 dataset generated in Task 1. The dataset already contains objective and subjective responder indicators (obj_resp, subj_resp), which are required to define the discordance outcomes. 
 
-=================================================================
+---
 **Define discordance outcocmes + counts **
 We now create two distinct binary outcomes to avoid mixing opposite discordance phenomena. The main outcome for the logistic model will be the Unhappy Responder profile (Obj+ / Subj-).
 
@@ -109,16 +109,37 @@ The happy_nonresponder variable captures the opposite pattern. We also report co
 We start from the patient-level dataset generated in Task 1, which contains one row per subject with objective and subjective responder indicators at the end of Cycle 1.
 This dataset represents the analytical backbone for Task2 and ensures that all subsequent analyses are conducted at the patient level.
 
-==============================================================
+---
 **Build the Task 2 analytic dataset (patient-level)**
-We want to explain who is more likely to be an Unhappy Responder at Cycle 1: patients who achieve an objective response (MMD reduction), but do not experience a clinically meaningful improvement in HIT-6,
-Therefore, the analytic dataset must contain one row per patient, with:
-1. the bianry outcome (unhappy_responder), and
-2. baseline predictors (demographics, diagnosis, comorbidities, baseline migraine burden / intensity, treatment type, etc).
+The objective of this step is to construct the final analytic dataset for Task 2, containing one row per patient and combining the discordance outcome defined in Step 2.0 with baseline clinical and demographic predictors.
+
+This dataset will be used as input for the logistic regression models aimed at identifying factors associated with the unhappy responder profile.
+
+**Patient-level dataset from Task 1**
+Task 2 starts from the patient-level dataset generated in Task 1, which contains one row per subject and summarizes objective and subjective treatment response at the end of Cycle 1.
+This dataset already includes:
+- the unique patient identifier (SUBJECT_ID),
+- objective responder status based on MMD reduction (obj_resp),
+- subjective responder status based on HIT-6 improvement (subj_resp),
+- a discordance indicator derived from these two dimensions.
+
+Using this dataset as the starting point ensures that all subsequent analyses are performed at the patient level and are directly linked to the response definitions established in Task 1.
+
+**Addition of baseline predictors**
+
+To investigate which factors are associated with the objective–subjective discordance, baseline clinical and demographic variables are added to the patient-level dataset.
+
+Baseline information is retrieved from the cleaned baseline dataset and merged using SUBJECT_ID. The predictors considered include:
+- demographic variables (e.g., age, sex),
+- clinical characteristics (diagnosis, comorbidities),
+- baseline migraine burden and severity.
+
+A left join is used to preserve the analytic sample defined in Task 1, ensuring that all patients included in the discordance analysis remain in the dataset.
+
 
 ```{r task2-step21-merge-baseline, message=FALSE, warning=FALSE}
 # ------------------------------------------------------------
-# Step 2.1: Load baseline (RDS) + merge into Cycle 1 dataset
+# Load baseline (RDS) + merge into Cycle 1 dataset
 # ------------------------------------------------------------
 
 file_baseline <- file.path("data", "processed", "baseline_clean.rds")
@@ -145,4 +166,50 @@ if ("AGE" %in% names(task2_df)) {
 
 # save
 readr::write_csv(task2_df, "outputs/task2/task2_cycle1_analytic_raw.csv")
+```
+
+**Four-profile clinical classification**
+
+For descriptive purposes and sanity checks, patients are additionally classified into four mutually exclusive response profiles based on the combination of objective and subjective response:
+
+- Concordant responders (OBJ+ / Subj+),
+- Unhappy responders (OBJ+ / Subj−),
+- Happy non-responders (OBJ− / Subj+),
+- Concordant non-responders (OBJ− / Subj−).
+
+This four-quadrant classification is not used as the primary outcome in the main logistic model, but it provides a clinically intuitive representation of treatment response patterns and helps contextualize the unhappy responder group.
+
+
+```{r task2-step22-profile4, message=FALSE, warning=FALSE}
+# ------------------------------------------------------------
+#  4-quadrant profile (OBJ/Subj)
+# ------------------------------------------------------------
+
+task2_df <- task2_df %>%
+  mutate(
+    profile_4 = case_when(
+      obj_resp == 1L & subj_resp == 1L ~ "Concordant responder (OBJ+ / Subj+)",
+      obj_resp == 1L & subj_resp == 0L ~ "Unhappy responder (OBJ+ / Subj-)",
+      obj_resp == 0L & subj_resp == 1L ~ "Happy non-responder (OBJ- / Subj+)",
+      obj_resp == 0L & subj_resp == 0L ~ "Concordant non-responder (OBJ- / Subj-)",
+      TRUE ~ NA_character_
+    ),
+    profile_4 = factor(
+      profile_4,
+      levels = c(
+        "Concordant responder (OBJ+ / Subj+)",
+        "Unhappy responder (OBJ+ / Subj-)",
+        "Happy non-responder (OBJ- / Subj+)",
+        "Concordant non-responder (OBJ- / Subj-)"
+      )
+    )
+  )
+
+# Counts + save
+profile_counts <- as.data.frame(table(task2_df$profile_4, useNA = "ifany"))
+names(profile_counts) <- c("profile_4", "n")
+profile_counts$pct <- 100 * profile_counts$n / sum(profile_counts$n)
+
+print(profile_counts)
+readr::write_csv(profile_counts, "outputs/task2/profile4_counts.csv")
 ```
