@@ -21,6 +21,7 @@ A sensitivity analysis repeats the same workflow under an alternative longitudin
 # ---- Setup ----
 if (!requireNamespace("rstudioapi", quietly = TRUE)) install.packages("rstudioapi")
 library(tidyverse)
+if (!requireNamespace("binom", quietly = TRUE)) install.packages("binom")
 
 # Robust project root handling (works in RStudio, doesn't crash elsewhere)
 if (requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
@@ -313,7 +314,7 @@ cat("Patients with start-of-cycle data:", nrow(c1_start), "\n")
 c1_end <- c1 %>%
   group_by(SUBJECT_ID) %>%
   filter(!is.na(month_num)) %>%
-  filter(!(is.na(MMDs) & is.na(HIT6))) %>%  # <-- aggiungi questa riga
+  filter(!(is.na(MMDs) & is.na(HIT6))) %>%  
   filter(month_num == max(month_num, na.rm = TRUE)) %>%
   slice_tail(n = 1) %>%
   ungroup() %>%
@@ -352,6 +353,74 @@ cat("Patients with valid start/end in Cycle 1:", nrow(c1_change), "\n")
 The resulting dataset (c1_change) contains one row per subject with Cycle 1 start and end measurements and the corresponding change metrics.
 Only subjects with both start-of-cycle and end-of-cycle information are retained (inner_join), ensuring that responder classification is based on complete paired measurements.
 
+Before defining responders, we report how many patients are retained at each step of the Cycle 1 selection process. This clarifies the effective sample size used for respoder and discordance analyses.
+```{r task1-cycle1-flow-main, message=FALSE, warning=FALSE}
+
+# ------------------------------------------------------------------
+# Cycle 1 flow (MAIN): how many patients are included at each step
+# ------------------------------------------------------------------
+# Goal: document the effective sample size for the responder/discordance analysis.
+# Responder classification requires paired (start + end) measurements.
+
+# Total patients with any Cycle 1 record
+n_c1_any <- c1 %>%
+  distinct(SUBJECT_ID) %>%
+  nrow()
+
+# Patients with start-of-cycle available (Month 1)
+n_c1_start <- c1_start %>%
+  distinct(SUBJECT_ID) %>%
+  nrow()
+
+# Patients with an end-of-cycle measurement (Month 12 if available, otherwise last observed visit)
+n_c1_end <- c1_end %>%
+  distinct(SUBJECT_ID) %>%
+  nrow()
+
+# Patients with paired start+end (this is the analysis set for responders)
+n_c1_paired <- c1_change %>%
+  distinct(SUBJECT_ID) %>%
+  nrow()
+
+# Optional: how many have valid percent change (requires MMDs_start > 0)
+n_valid_pct_mmds <- c1_change %>%
+  filter(!is.na(pct_change_MMDs)) %>%
+  distinct(SUBJECT_ID) %>%
+  nrow()
+
+# Optional: how many have valid HIT6 change
+n_valid_delta_hit6 <- c1_change %>%
+  filter(!is.na(delta_HIT6)) %>%
+  distinct(SUBJECT_ID) %>%
+  nrow()
+
+# Build a compact flow table
+flow_cycle1_main <- tibble::tibble(
+  step = c(
+    "Any Cycle 1 record",
+    "Start available (Month 1)",
+    "End available (Month 12 or last observed)",
+    "Paired start+end (responder analysis set)",
+    "Valid pct_change_MMDs (MMDs_start > 0)",
+    "Valid delta_HIT6"
+  ),
+  n_subjects = c(
+    n_c1_any,
+    n_c1_start,
+    n_c1_end,
+    n_c1_paired,
+    n_valid_pct_mmds,
+    n_valid_delta_hit6
+  )
+) %>%
+  mutate(pct_of_any_cycle1 = round(100 * n_subjects / n_c1_any, 1))
+
+flow_cycle1_main
+
+# Save for report reproducibility
+readr::write_csv(flow_cycle1_main, "outputs/task1/flow_cycle1_main.csv")
+```
+Responder and discordance definitions are therefore applied only to patients with paired start and end measurement within Cycle 1.
 ===============================================================================
 
 In this next step, we will apply pre-specified clinical thresholds to pct_change_MMDs and delta_HIT6 to define objective and subjective responders and identify discordant profiles. 
@@ -390,7 +459,6 @@ c1_change <- c1_change %>%
 cat("Objective responder rate:", mean(c1_change$obj_resp, na.rm = TRUE), "\n")
 cat("Subjective responder rate:", mean(c1_change$subj_resp, na.rm = TRUE), "\n")
 
-
 # ------------------------------------------------------------------
 # Define discordance
 # ------------------------------------------------------------------
@@ -414,7 +482,50 @@ c1_change <- c1_change %>%
 
 cat("Discordance rate (obj yes, subj no):", mean(c1_change$discordance, na.rm = TRUE), "\n")
 cat("Concordant responder rate (obj yes, subj yes):", mean(c1_change$concordant, na.rm = TRUE), "\n")
+```
 
+We quantify the prevalence of the primary discordant profile (objective responder without subjective response) and report a 95% confidence interval for the corresponding proportion (complete-case on responder status).
+
+```{r task1-discordance-ci-main, message=FALSE, warning=FALSE}
+# ------------------------------------------------------------------
+# Discordance prevalence (MAIN) + 95% CI
+# ------------------------------------------------------------------
+# We compute the proportion of primary discordance among patients with
+# non-missing responder status (complete-case on obj_resp and subj_resp).
+
+# Complete-case denominator
+disc_cc <- c1_change %>%
+  filter(!is.na(obj_resp), !is.na(subj_resp))
+
+n_cc <- nrow(disc_cc)
+
+# Numerator: primary discordance (obj yes, subj no)
+n_disc <- sum(disc_cc$obj_resp == 1L & disc_cc$subj_resp == 0L)
+
+# Point estimate
+p_disc <- n_disc / n_cc
+
+# 95% CI (Wilson score interval)
+ci_wilson <- binom::binom.confint(n_disc, n_cc, methods = "wilson")
+
+# Output table
+disc_ci_main <- tibble::tibble(
+  dataset = "MAIN",
+  n_complete_case = n_cc,
+  n_discordant = n_disc,
+  discordance_rate = p_disc,
+  ci_low = ci_wilson$lower,
+  ci_high = ci_wilson$upper
+)
+
+disc_ci_main
+
+# Save for report
+readr::write_csv(disc_ci_main, "outputs/task1/discordance_ci_main.csv")
+```
+
+
+```{r task1-quadrant-definition-main, message=FALSE, warning=FALSE}
 # ------------------------------------------------------------------
 # Quadrant definition (MAIN) using clinical thresholds
 #------------------------------------------------------------------
@@ -446,8 +557,8 @@ head(c1_change)
 table(c1_change$obj_resp, useNA = "ifany")
 table(c1_change$subj_resp, useNA = "ifany")
 table(c1_change$discordance, useNA = "ifany")
-
 ```
+
 Using these clinically grounded definitions, we classified each patient at the end of Cycle 1 as an objective responder, a subjective responder, both, or neither.
 
 This classification allows us to explicitly distinguish between:
@@ -508,6 +619,41 @@ The 2x2 table provides a direct quantification of agreement between objective an
 
 In particular, the cell(obj=1, subj=0) represents patients with a clinically meaningful reduction in MMDs, but do not report a relevant improvement in HIT-6.
 This subgroup constitutes the **discordant patients of primary interest** for the remainder of the analysis.
+
+**Cohen's kappa for responder status**
+Agreement between objective and subjective responder definitions is summarised using Cohen’s kappa (complete-case on responder status).
+
+```{r task1-kappa-main, message=FALSE, warning=FALSE}
+# ------------------------------------------------------------------
+# Agreement (MAIN): Cohen's kappa for responder status
+# ------------------------------------------------------------------
+
+if (!requireNamespace("irr", quietly = TRUE)) install.packages("irr")
+
+disc_cc <- c1_change %>%
+  filter(!is.na(obj_resp), !is.na(subj_resp)) %>%
+  mutate(
+    obj  = factor(obj_resp,  levels = c(0, 1)),
+    subj = factor(subj_resp, levels = c(0, 1))
+  )
+
+kappa_main <- irr::kappa2(disc_cc[, c("obj", "subj")], weight = "unweighted")
+
+kappa_main
+
+kappa_main_tbl <- tibble::tibble(
+  dataset = "MAIN",
+  n_complete_case = nrow(disc_cc),
+  kappa = unname(kappa_main$value),
+  z = unname(kappa_main$statistic),
+  p_value = unname(kappa_main$p.value)
+)
+
+kappa_main_tbl
+readr::write_csv(kappa_main_tbl, "outputs/task1/kappa_main.csv")
+```
+Agreement between objective and subjective responder definitions was fair to moderate (Cohen's k≈035) and significantly greater than chance (p<0.001)
+The moderate level of agreement indicates that objective and subjective response capture related but non-overlapping aspects of treatment benefit, supporting the presence of a clinically meaningful objective–subjective mismatch.
 
 ===============================================================================
 We now visualize the patient-level mismatch between objective and subjective improvement at the end of Cycle 1.
