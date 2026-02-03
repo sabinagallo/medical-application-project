@@ -771,14 +771,28 @@ c1_change_sens <- c1_start_sens %>%
 # Define responders
 c1_change_sens <- c1_change_sens %>%
   mutate(
-    obj_resp = if_else(!is.na(pct_change_MMDs) & pct_change_MMDs <= -0.50, 1L, 0L),
-    subj_resp = if_else(!is.na(delta_HIT6) & delta_HIT6 <= -5, 1L, 0L),
-    discordance = if_else(obj_resp == 1L & subj_resp == 0L, 1L, 0L)
+    obj_resp = case_when(
+      is.na(pct_change_MMDs) ~ NA_integer_,
+      pct_change_MMDs <= -0.50 ~ 1L,
+      TRUE ~ 0L
+    ),
+    subj_resp = case_when(
+      is.na(delta_HIT6) ~ NA_integer_,
+      delta_HIT6 <= -5 ~ 1L,
+      TRUE ~ 0L
+    ),
+    discordance = case_when(
+      is.na(obj_resp) | is.na(subj_resp) ~ NA_integer_,
+      obj_resp == 1L & subj_resp == 0L ~ 1L,
+      TRUE ~ 0L
+    )
   )
 
-cat("Objective responder rate (SENS):", mean(c1_change_sens$obj_resp), "\n")
-cat("Subjective responder rate (SENS):", mean(c1_change_sens$subj_resp), "\n")
-cat("Discordance rate (SENS):", mean(c1_change_sens$discordance), "\n")
+
+cat("Objective responder rate (SENS):", mean(c1_change_sens$obj_resp, na.rm = TRUE), "\n")
+cat("Subjective responder rate (SENS):", mean(c1_change_sens$subj_resp, na.rm = TRUE), "\n")
+cat("Discordance rate (SENS):", mean(c1_change_sens$discordance, na.rm = TRUE), "\n")
+
 
 # Save dataset
 readr::write_csv(
