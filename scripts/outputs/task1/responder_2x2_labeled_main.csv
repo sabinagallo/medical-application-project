@@ -1,5 +1,4 @@
 obj_resp_lbl,subj_resp_lbl,n,pct_total
-Objective non-responder,Subjective non-responder,70,39.10614525139665
-Objective non-responder,Subjective responder,25,13.966480446927374
-Objective responder,Subjective non-responder,17,9.497206703910615
-Objective responder,Subjective responder,67,37.43016759776536
+Objective non-responder,Subjective non-responder,47,26.256983240223462
+NA,Subjective non-responder,34,18.99441340782123
+NA,NA,98,54.74860335195531
