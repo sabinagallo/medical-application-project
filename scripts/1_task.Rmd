@@ -381,17 +381,18 @@ We then define discordance as objective response without subjective improvement 
 
 c1_change <- c1_change %>%
   mutate(
-    obj_resp = case_when( 
-      !is.na(pct_change_MMDs) ~ NA_integer_,
+    obj_resp = case_when(
+      is.na(pct_change_MMDs) ~ NA_integer_,
       pct_change_MMDs <= -0.50 ~ 1L,
       TRUE ~ 0L
     ),
     subj_resp = case_when(
-      !is.na(delta_HIT6) ~ NA_integer_,
-    delta_HIT6 <= -5 ~ 1L,
-    TRUE ~ 0L
+      is.na(delta_HIT6) ~ NA_integer_,
+      delta_HIT6 <= -5 ~ 1L,
+      TRUE ~ 0L
     )
   )
+
 
 cat("Objective responder rate:", mean(c1_change$obj_resp, na.rm = TRUE), "\n")
 cat("Subjective responder rate:", mean(c1_change$subj_resp, na.rm = TRUE), "\n")
@@ -418,9 +419,9 @@ c1_change <- c1_change %>%
     )
   )
 
+cat("Discordance rate (obj yes, subj no):", mean(c1_change$discordance, na.rm = TRUE), "\n")
+cat("Concordant responder rate (obj yes, subj yes):", mean(c1_change$concordant, na.rm = TRUE), "\n")
 
-cat("Discordance rate (obj yes, subj no):", mean(c1_change$discordance), "\n")
-cat("Concordant responder rate (obj yes, subj yes):", mean(c1_change$concordant), "\n")
 
 # ------------------------------------------------------------------
 # Save dataset for downstream analyses (Task 2)
@@ -433,6 +434,12 @@ readr::write_csv(
 
 dplyr::glimpse(c1_change)
 head(c1_change)
+
+# ---- Micro-check finale (MAIN) ----
+table(c1_change$obj_resp, useNA = "ifany")
+table(c1_change$subj_resp, useNA = "ifany")
+table(c1_change$discordance, useNA = "ifany")
+
 ```
 Using these clinically grounded definitions, we classified each patient at the end of Cycle 1 as an objective responder, a subjective responder, both, or neither.
 
@@ -456,8 +463,10 @@ This table cross-classifies patients according to objective response (based on M
 
 dir.create("outputs/task1", recursive = TRUE, showWarnings = FALSE)
 tab_2x2 <- c1_change %>%
-  count(obj_resp, subj_resp, name = "n", .drop = FALSE) %>%
+  filter(!is.na(obj_resp), !is.na(subj_resp)) %>%   # <-- fondamentale
+  count(obj_resp, subj_resp, name = "n") %>%
   mutate(pct_total = 100 * n / sum(n))
+
 
 # Print table
 tab_2x2
@@ -469,11 +478,19 @@ readr::write_csv(tab_2x2, "outputs/task1/responder_2x2_main.csv")
 #Labeled table
 tab_2x2_labeled <- c1_change %>%
   mutate(
-    obj_resp_lbl = if_else(obj_resp == 1L, "Objective responder", "Objective non-responder"),
-    subj_resp_lbl = if_else(subj_resp == 1L, "Subjective responder", "Subjective non-responder")
+    obj_resp_lbl = case_when(
+      is.na(obj_resp) ~ "Objective missing",
+      obj_resp == 1L ~ "Objective responder",
+      TRUE ~ "Objective non-responder"
+    ),
+    subj_resp_lbl = case_when(
+      is.na(subj_resp) ~ "Subjective missing",
+      subj_resp == 1L ~ "Subjective responder",
+      TRUE ~ "Subjective non-responder"
+    )
   ) %>%
   count(obj_resp_lbl, subj_resp_lbl, name = "n") %>%
-  mutate(pct_total = 100* n / sum(n))
+  mutate(pct_total = 100 * n / sum(n))
 
 tab_2x2_labeled
 readr::write_csv(tab_2x2_labeled,"outputs/task1/responder_2x2_labeled_main.csv")
@@ -505,14 +522,15 @@ Each point represents one patient, with the x-axis showing the percentage change
 c1_change <- c1_change %>%
   mutate(
     quadrant = case_when(
-      obj_resp == 1L & subj_resp == 1L ~ "Concordant responders",
-      obj_resp == 1L & subj_resp == 0L ~ "Discordant (obj yes, subj no)",
-      obj_resp == 0L & subj_resp == 1L ~ "Discordant (obj no, subj yes)",
-      TRUE ~ "Concordant non-responders"
-    )
-  )
-  
+  is.na(obj_resp) | is.na(subj_resp) ~ "Missing responder status",
+  obj_resp == 1L & subj_resp == 1L ~ "Concordant responders",
+  obj_resp == 1L & subj_resp == 0L ~ "Discordant (obj yes, subj no)",
+  obj_resp == 0L & subj_resp == 1L ~ "Discordant (obj no, subj yes)",
+  TRUE ~ "Concordant non-responders"
+)
+)
 
+  
 # Scatter plot
 p_scatter <- ggplot(c1_change, aes(x = pct_change_MMDs, y = delta_HIT6)) +
   # Decision thresholds
@@ -888,9 +906,12 @@ This provides a compact robustness check of the studyâ€™s main claim: objectiveâ
 disc_compare <- tibble::tibble(
   dataset = c("MAIN (interpolation)", "SENS (LOCF)"),
   n = c(nrow(c1_change), nrow(c1_change_sens)),
-  discordance_rate = c(mean(c1_change$discordance), mean(c1_change_sens$discordance)),
-  obj_resp_rate = c(mean(c1_change$obj_resp), mean(c1_change_sens$obj_resp)),
-  subj_resp_rate = c(mean(c1_change$subj_resp), mean(c1_change_sens$subj_resp))
+  discordance_rate = c(mean(c1_change$discordance, na.rm=TRUE),
+                     mean(c1_change_sens$discordance, na.rm=TRUE)),
+obj_resp_rate = c(mean(c1_change$obj_resp, na.rm=TRUE),
+                  mean(c1_change_sens$obj_resp, na.rm=TRUE)),
+subj_resp_rate = c(mean(c1_change$subj_resp, na.rm=TRUE),
+                   mean(c1_change_sens$subj_resp, na.rm=TRUE))
 )
 
 disc_compare
