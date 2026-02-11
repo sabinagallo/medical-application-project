@@ -14,5 +14,5 @@ A specific focus is placed on identifying patients showing a mismatch between bi
 - Logistic regression for discordant treatment response
 
 ## Authors
-Gallo Sabina
+Gallo Sabina,
 Marrali Irene
