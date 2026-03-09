@@ -91,8 +91,16 @@ Methods:
 - multiple imputation (MICE)
 - logistic regression
 
-## Project Report
-Full methodological details and results are available in the report. 
+## Project Materials
+Additional materials for this project are available below.
+
+**Project report**
+Full methodological details and results.
+[Read the report](medical_report.pdf)
+
+**Project Presentation**
+Slides used to present the project and main findings.
+[View the presentation](project_presentation.pdf)
 
 # Authors
 Gallo Sabina,
