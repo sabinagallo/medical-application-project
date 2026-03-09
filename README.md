@@ -3,6 +3,7 @@
 ![Statistics](https://img.shields.io/badge/method-Statistical%20Modeling-orange)
 ![University Project](https://img.shields.io/badge/type-Academic%20Project-lightgrey)
 # Objective-Subjective Mismatch in Anti-CGRP Migraine Treatment
+## BSc Artificial Intelligence - Medical Applications and Healthcare Project
 Analysis of the relationship between clinical efficacy and patient-perceived benefit in migraine preventive therapy using longitudinal statistical models.
 
 ## Project Overview
@@ -15,10 +16,20 @@ This project investigates the potential objective-subjective mismatch in treatme
 The analysis explores two main questions:
 
 **Objective vs Subjective Response**
+
 Does a reduction in migraine frequency correspond to improvements in patient-reported outcomes such as HIT-6?
 
 **Determinants of Discordance**
+
 Which baseline characteristics may explain cases where clinical improvement does not translate into perceived benefit?
+
+### Key Results
+
+**Longitudinal Trend in Monthly Migraine Days**
+! [MMD Trend](outputs/task1/figures/trend_mmds_main.png)
+
+**Objective vs Subjective Treatment Response**
+! [Objective vs Subjective](outputs/task1/figures/scatter_mmds_pct_vs_hit6_delta_main.png)
 
 ## Dataset
 The analysis uses a longitudinal dataset of migraine patients treated with anti-CGRP therapies.
@@ -26,6 +37,7 @@ The analysis uses a longitudinal dataset of migraine patients treated with anti-
 The data contains two main components.
 
 **Baseline dataset**
+
 Clinical and demographic information collected before treatment:
 - age and gender
 - migraine history
@@ -33,6 +45,7 @@ Clinical and demographic information collected before treatment:
 - baseline disability and pain measures
 
 **Longitudinal dataset**
+
 Repeated measurements collected during treatment:
 - Monthly Migraine Days (MMDs)
 - HIT-6 (Headache Impact Test)
@@ -44,15 +57,18 @@ Month 1 - Month 3 - Month 6 - Month 9 - Month 12
 
 ## Methods
 **Longitudinal Modeling**
-Treatment trajectories were analyzed using linear mixed-effects models to account fro repeated measurements within patients.
+Treatment trajectories were analyzed using linear mixed-effects models to account for repeated measurements within patients.
 
 Model specification:
-MMDs ~ CYCLE + MONTH + (1|SUBJECT_ID)
-HIT6 ~ CYCLE + MONTH+(1|SUBJECT_ID)
 
-These models estimate population-level treatment effects while capturing indiidual variability.
+MMDs ~ CYCLE + MONTH + (1 | SUBJECT_ID)
+
+HIT6 ~ CYCLE + MONTH + (1 | SUBJECT_ID)
+
+These models estimate population-level treatment effects while capturing individual variability.
 
 **Response Definitions**
+
 Treatment response was evaluated at the end of Cycle 1.
 
 Objective response
@@ -62,6 +78,25 @@ Subjective response
 ≥5-point improvement in HIt-6 score
 
 Patients were classified into response profile, with particular focus on the discordant subgroup showing biological improvement without perceived benefit.
+
+## Analytical Workflow
+1. **Data integration**  
+   Merge baseline and longitudinal datasets.
+
+2. **Missing data handling**  
+   Multiple Imputation (MICE) for baseline variables and linear interpolation for longitudinal outcomes.
+
+3. **Longitudinal modeling**  
+   Linear mixed-effects models to evaluate treatment trajectories.
+
+4. **Response classification**  
+   Identification of objective and subjective responders.
+
+5. **Exploratory regression analysis**  
+   Logistic regression to explore baseline predictors of discordance.
+
+6. **Clinical interpretation**  
+   Evaluation of the mismatch between biological response and patient-perceived benefit.
 
 ## Results and Insights
 The analysis reveals important patterns.
@@ -81,7 +116,7 @@ Libraries
 - tidyverse
 - lme4
 - mice
-- ggplot3
+- ggplot2
 - dplyr
 - tidyr
 
@@ -103,7 +138,8 @@ Slides used to present the project and main findings.
 [View the presentation](project_presentation.pdf)
 
 # Authors
-Gallo Sabina,
+Gallo Sabina
+
 Marrali Irene
 
 BSc in Artificial Intelligence @ Università degli Studi di Milano, Università degli Studi di Pavia, Università degli Studi di Milano-Bicocca
