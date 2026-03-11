@@ -76,10 +76,10 @@ These models estimate population-level treatment effects while capturing individ
 
 Treatment response was evaluated at the end of Cycle 1.
 
-Objective response
+Objective response  
 ≥50 % reduction in Montlhy Migraine Days
 
-Subjective response
+Subjective response  
 ≥5-point improvement in HIt-6 score
 
 Patients were classified into response profile, with particular focus on the discordant subgroup showing biological improvement without perceived benefit.
@@ -118,8 +118,6 @@ Exploratory regression analysis suggests that this discordance is not explained 
 These findings suggest that treatment success in migraine prevention cannot be evaluated solely through biological markers such as migraine frequency.
 
 Patient-reported outcomes provide complementary information about disease burden and perceived beneift, highlighting the importance of integrating subjective measures into treatment evaluation.
-
-
 
 ## Tech Stack
 Language: R
