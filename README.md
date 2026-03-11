@@ -80,7 +80,7 @@ Objective response
 ≥50 % reduction in Montlhy Migraine Days
 
 Subjective response  
-≥5-point improvement in HIt-6 score
+≥5-points improvement in HIT-6 score
 
 Patients were classified into response profile, with particular focus on the discordant subgroup showing biological improvement without perceived benefit.
 
