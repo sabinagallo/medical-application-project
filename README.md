@@ -148,8 +148,7 @@ Slides used to present the project and main findings.
 [View the presentation](project_presentation.pdf)
 
 # Authors
-Gallo Sabina
-
+Gallo Sabina  
 Marrali Irene
 
 BSc in Artificial Intelligence @ Università degli Studi di Milano, Università degli Studi di Pavia, Università degli Studi di Milano-Bicocca
